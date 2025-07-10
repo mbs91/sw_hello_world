@@ -1,0 +1,124 @@
+server:
+  extraScrapeConfigs:
+    # POSTGRESQL PROMETHEUS SCRAPING CONFIG
+    - job_name: 'postgres-exporter'
+      scrape_interval: 15s
+      static_configs:
+        - targets: ["postgres-exporter:9187"]
+    # REDIS PROMETHEUS SCRAPING CONFIG
+    - job_name: 'redis-exporter'
+      scrape_interval: 15s
+      static_configs:
+        - targets: ["redis-metrics:9121"]
+    # RAILS-PUMA PROMETHEUS SCRAPING CONFIG
+    - job_name: 'puma-exporter'
+      scrape_interval: 15s
+      static_configs:
+        - targets: ["sw-hello-world:9393"]
+    # KUBE SCRAPING CONFIG
+    - job_name: 'kube-state-metrics'
+      scrape_interval: 15s
+      static_configs:
+        - targets: ["kube-state-metrics:8080"]
+
+  
+  alertingRules:
+    groups:
+    - name: common
+      rules:
+      # down instances
+      - alert: ServiceDown
+        expr: up == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: '(instance {{"{{"}} $labels.instance }}) Down'
+          description: ' (instance {{"{{"}} $labels.instance }}) is down\n  VALUE = {{"{{"}} $value }}\n  LABELS: {{"{{"}} $labels }}'
+      
+
+    - name: postgresl
+      rules:
+      # Postgres connections above 90%
+      - alert: PostgresqlTooManyConnections
+        expr: sum by (datname) (pg_stat_activity_count{datname!~"template.*|postgres"}) > pg_settings_max_connections * 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Postgresql too many connections (instance {{"{{"}} $labels.instance }})'
+          description: 'PostgreSQL instance has too many connections\n  VALUE = {{"{{"}} $value }}\n  LABELS: {{"{{"}} $labels }}'
+      #postgres slow queries more than 0
+      - alert: PostgresqlSlowQueries
+        expr: pg_slow_queries > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Postgresql slow queries (instance {{"{{"}} $labels.instance }})'
+          description: 'PostgreSQL executes slow queries\n  VALUE = {{"{{"}} $value }}\n  LABELS: {{"{{"}} $labels }}'     
+      # PVC usage over 80%
+      - alert: PVCHighUsage 
+        expr:  100*(kube_persistentvolumeclaim_resource_requests_storage_bytes{persistentvolumeclaim="data-postgresql-0"}/kube_persistentvolume_capacity_bytes)>80
+        for: 5m
+        labels:
+          severity: Warning
+        annotations:
+          summary: 'Postgresql slow queries (instance {{"{{"}} $labels.instance }})'
+          description: 'PostgreSQL executes slow queries\n  VALUE = {{"{{"}} $value }}\n  LABELS: {{"{{"}} $labels }}'   
+
+
+    - name: redis
+      rules:
+      # Redis memory usage above 90%
+      - alert: RedisOutOfMemory
+        expr: redis_memory_used_bytes / redis_total_system_memory_bytes * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Redis out of memory (instance {{"{{"}} $labels.instance }})'
+          description: 'Redis is running out of memory (> 90%)\n  VALUE = {{"{{"}} $value }}\n  LABELS: {{"{{"}} $labels }}'
+      
+      #Redis connections over 100
+      - alert: RedisTooManyConnections
+        expr: redis_connected_clients > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Redis too many connections (instance {{"{{"}} $labels.instance }})'
+          description: 'Redis instance has too many connections\n  VALUE = {{"{{"}} $value }}\n  LABELS: {{"{{"}} $labels }}'
+
+    - name: sw_hello_world
+      rules:
+      # Puma connections over 100
+      - alert: PumaTooManyRequests
+        expr: puma_requests_count > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Puma too many requests (instance {{"{{"}} $labels.instance }})'
+          description: 'Puma instance has too many requests\n  VALUE = {{"{{"}} $value }}\n  LABELS: {{"{{"}} $labels }}'
+      #Puma Backlog Count (# of established but unaccepted connections) over 20
+      - alert: PumaBigBacklog
+        expr: puma_backlog > 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Puma requests backlog been over 20 on (instance {{"{{"}} $labels.instance }})'
+          description: 'Puma requests backlog been over 20 \n  VALUE = {{"{{"}} $value }}\n  LABELS: {{"{{"}} $labels }}'
+      # Puma running worker threads count is equal to max possible count
+      - alert: PumaHittingMaxThreads
+        expr: puma_running == puma_max_threads
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Puma hitting max threads for over 5 mins on (instance {{"{{"}} $labels.instance }})'
+          description: 'Puma hitting max threads for over 5 mins \n  VALUE = {{"{{"}} $value }}\n  LABELS: {{"{{"}} $labels }}'
+
+
+

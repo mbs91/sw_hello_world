@@ -1,0 +1,15 @@
+---
+
+auth:
+  username: "postgres"
+  password: "password"
+  # usePasswordFiles: false
+  # postgresPassword: "password"
+  database: "sw_hello_world_development"
+
+
+# metrics:
+#   enabled: true
+#   extraEnvVars:
+#     - DATA_SOURCE_PASS_FILE:  /opt/bitnami/postgresql/secrets/postgres-password # did not work
+

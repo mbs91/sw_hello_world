@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-exporter
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: postgres-exporter
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: postgres-exporter
+    spec:
+      containers:
+        - name: postgres-exporter
+          image: prometheuscommunity/postgres-exporter:latest
+          env:
+            - name: DATA_SOURCE_URI
+              value: postgresql/postgres?sslmode=disable
+            - name: DATA_SOURCE_PASS_FILE
+              value: /opt/bitnami/postgresql/secrets/postgres-password
+            - name: DATA_SOURCE_USER
+              value: postgres
+            # - name: DATA_SOURCE_NAME
+            #   value: "postgresql://<db-user>:<db-password>@<db-host>:<db-port>/<db-name>?sslmode=disable"
+          ports:
+            - containerPort: 9187
+              name: metrics
+          livenessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /
+              port: metrics
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          readinessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /
+              port: metrics
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          volumeMounts:
+            # - mountPath: /tmp
+            #   name: empty-dir
+            #   subPath: tmp-dir
+            # - mountPath: /opt/bitnami/postgresql/conf
+            #   name: empty-dir
+            #   subPath: app-conf-dir
+            # - mountPath: /opt/bitnami/postgresql/tmp
+            #   name: empty-dir
+            #   subPath: app-tmp-dir
+            - mountPath: /opt/bitnami/postgresql/secrets/
+              name: postgresql-password
+      volumes:
+        # - name: data
+        #   persistentVolumeClaim:
+        #     claimName: data-postgresql-0
+        # - emptyDir: {}
+        #   name: empty-dir
+        - name: postgresql-password
+          secret:
+            defaultMode: 420
+            secretName: postgresql
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-exporter
+  namespace: default
+spec:
+  selector:
+    app: postgres-exporter
+  ports:
+    - protocol: TCP
+      port: 9187
+      targetPort: 9187
